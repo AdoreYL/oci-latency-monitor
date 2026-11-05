@@ -1,0 +1,13 @@
+{
+  "name": "oci-latency-monitor",
+  "version": "1.0.0",
+  "description": "甲骨文云 (OCI) 全球节点实时延迟与丢包监控系统",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

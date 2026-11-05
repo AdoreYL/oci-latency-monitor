@@ -1,0 +1,12 @@
+services:
+  oci-latency-monitor:
+    build: .
+    container_name: ${CONTAINER_NAME:-oci-latency-monitor}
+    ports:
+      - "${HOST_PORT:-6689}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - AUTO_SYNC_REGIONS=${AUTO_SYNC_REGIONS:-true}
+    restart: unless-stopped
+
