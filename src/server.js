@@ -1,14 +1,9 @@
 const http = require('node:http');
-const net = require('node:net');
 const fs = require('node:fs');
 const path = require('node:path');
-const { performance } = require('node:perf_hooks');
 
 const {
   getRegionsData,
-  isValidRegionId,
-  getRegionById,
-  getAllRegionIds,
   syncOfficialRegions
 } = require('./regions.js');
 
@@ -21,64 +16,6 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-/**
- * 对指定甲骨文官方区域网关执行 TCP 443 握手测速（单次超时默认 3000ms）
- */
-function probeNodeTcp(regionId, timeoutMs = 3000) {
-  const region = getRegionById(regionId);
-  if (!region) {
-    return Promise.resolve({ ok: false, latency: null, method: 'tcp', error: 'unknown_region' });
-  }
-
-  return new Promise((resolve) => {
-    const startTime = performance.now();
-    const socket = new net.Socket();
-    let settled = false;
-
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(result);
-    };
-
-    socket.setTimeout(timeoutMs);
-
-    socket.once('connect', () => {
-      const rtt = Math.max(1, Math.round(performance.now() - startTime));
-      finish({ ok: true, latency: rtt, method: 'tcp' });
-    });
-
-    socket.once('timeout', () => {
-      finish({ ok: false, latency: null, method: 'tcp', error: 'timeout' });
-    });
-
-    socket.once('error', (err) => {
-      finish({ ok: false, latency: null, method: 'tcp', error: err.code || 'error' });
-    });
-
-    socket.connect(443, region.host);
-  });
-}
-
-async function probeBatch(regionIds, probeFn, concurrency = 10) {
-  const results = {};
-  let index = 0;
-  const total = regionIds.length;
-
-  async function worker() {
-    while (index < total) {
-      const currentIdx = index++;
-      const id = regionIds[currentIdx];
-      results[id] = await probeFn(id);
-    }
-  }
-
-  const workerCount = Math.min(concurrency, total);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
-}
-
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
@@ -89,7 +26,6 @@ function sendJson(res, statusCode, payload) {
 }
 
 function createAppServer(options = {}) {
-  const probeFn = options.probeFn || probeNodeTcp;
   const syncFn = options.syncFn || syncOfficialRegions;
   const publicDir = options.publicDir || path.join(__dirname, '..', 'public');
 
@@ -113,29 +49,6 @@ function createAppServer(options = {}) {
       if (req.method === 'POST' && pathname === '/api/regions/sync') {
         const syncResult = await syncFn();
         return sendJson(res, 200, syncResult);
-      }
-
-      if (req.method === 'GET' && pathname === '/api/ping') {
-        const targetId = parsedUrl.searchParams.get('id');
-        if (targetId !== null) {
-          if (!isValidRegionId(targetId)) {
-            return sendJson(res, 400, {
-              error: '非法或未授权的区域节点 ID（仅允许探测甲骨文官方区域白名单）'
-            });
-          }
-          const singleRes = await probeFn(targetId);
-          return sendJson(res, 200, {
-            timestamp: Date.now(),
-            results: { [targetId]: singleRes }
-          });
-        }
-
-        const allIds = getAllRegionIds();
-        const batchResults = await probeBatch(allIds, probeFn, 10);
-        return sendJson(res, 200, {
-          timestamp: Date.now(),
-          results: batchResults
-        });
       }
 
       // 静态资源服务
@@ -182,7 +95,5 @@ if (require.main === module) {
 }
 
 module.exports = {
-  createAppServer,
-  probeNodeTcp,
-  probeBatch
+  createAppServer
 };

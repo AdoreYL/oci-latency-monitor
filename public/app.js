@@ -68,7 +68,6 @@ const FALLBACK_GROUPS = {
 
 let regionGroups = FALLBACK_GROUPS;
 const nodeState = {};
-let probeMode = 'browser'; // 'browser' | 'server'
 let isRunning = false;
 let roundCount = 0;
 let loopTimer = null;
@@ -318,35 +317,6 @@ async function pingSingleNodeBrowser(nodeId) {
   updateNodeUI(nodeId);
 }
 
-async function pingSingleNodeServer(nodeId) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4500);
-
-  try {
-    const res = await fetch(`api/ping?id=${encodeURIComponent(nodeId)}`, {
-      cache: 'no-store',
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      recordProbeSample(nodeId, false, null);
-    } else {
-      const data = await res.json();
-      const item = data?.results?.[nodeId];
-      if (item && item.ok && typeof item.latency === 'number') {
-        recordProbeSample(nodeId, true, item.latency);
-      } else {
-        recordProbeSample(nodeId, false, null);
-      }
-    }
-  } catch (_) {
-    clearTimeout(timer);
-    recordProbeSample(nodeId, false, null);
-  }
-
-  updateNodeUI(nodeId);
-}
-
 function updateNodeUI(nodeId) {
   const st = nodeState[nodeId];
   if (!st) return;
@@ -424,26 +394,21 @@ async function runBatchRound() {
 
   const statusTitle = document.getElementById('statusTitle');
   const progressBar = document.getElementById('progressBar');
-  const modeLabel = probeMode === 'browser' ? '本地电脑直连' : '服务器容器探测';
-  statusTitle.textContent = `正在实时检测中 (${modeLabel}) · 第 ${roundCount} 轮 (0/${total})`;
+  statusTitle.textContent = `正在实时检测中 · 第 ${roundCount} 轮 (0/${total})`;
   progressBar.style.width = '0%';
 
-  const concurrency = probeMode === 'browser' ? 6 : 8;
+  const concurrency = 6;
   let index = 0;
 
   async function worker() {
     while (index < total && isRunning && !currentRunAborted) {
       const currentIndex = index++;
       const nodeId = allIds[currentIndex];
-      if (probeMode === 'browser') {
-        await pingSingleNodeBrowser(nodeId);
-      } else {
-        await pingSingleNodeServer(nodeId);
-      }
+      await pingSingleNodeBrowser(nodeId);
       completed++;
       const pct = Math.round((completed / total) * 100);
       progressBar.style.width = `${pct}%`;
-      statusTitle.textContent = `正在实时检测中 (${modeLabel}) · 第 ${roundCount} 轮 (${completed}/${total})`;
+      statusTitle.textContent = `正在实时检测中 · 第 ${roundCount} 轮 (${completed}/${total})`;
       updateSummaryStats();
     }
   }
@@ -452,7 +417,7 @@ async function runBatchRound() {
 
   if (isRunning && !currentRunAborted) {
     const intervalMs = parseInt(document.getElementById('intervalSelect').value, 10) || 3500;
-    statusTitle.textContent = `第 ${roundCount} 轮检测完成 (${modeLabel}) · 等待下一轮刷新...`;
+    statusTitle.textContent = `第 ${roundCount} 轮检测完成 · 等待下一轮刷新...`;
     loopTimer = setTimeout(runBatchRound, intervalMs);
   }
 }
@@ -474,23 +439,6 @@ function stopContinuousTest() {
   document.getElementById('btnStart').disabled = false;
   document.getElementById('btnStop').disabled = true;
   document.getElementById('statusTitle').textContent = `检测已暂停（已完成 ${roundCount} 轮）· 点击“开始检测”继续`;
-}
-
-function switchMode(newMode) {
-  if (probeMode === newMode) return;
-  probeMode = newMode;
-
-  document.getElementById('modeBrowserBtn').classList.toggle('active', probeMode === 'browser');
-  document.getElementById('modeServerBtn').classList.toggle('active', probeMode === 'server');
-
-  const statusSub = document.getElementById('statusSub');
-  if (probeMode === 'browser') {
-    statusSub.textContent = '当前视角：🏠 本地电脑浏览器直连甲骨文全球节点（HTTPS Keep-Alive 实时 RTT）';
-  } else {
-    statusSub.textContent = '当前视角：🖥️ 服务器容器并发探测甲骨文全球节点（TCP 443 真实握手延迟与丢包率）';
-  }
-
-  resetStats(true);
 }
 
 function updateInterval() {

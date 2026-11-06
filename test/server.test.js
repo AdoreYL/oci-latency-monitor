@@ -191,16 +191,10 @@ test('Official SDK region sync parses OC1 regions, checks DNS, and falls back sa
   resetRegionsToBuiltin();
 });
 
-test('HTTP Server API endpoints (/api/health, /api/regions, /api/ping, /api/regions/sync, static files)', async () => {
+test('HTTP Server API endpoints (/api/health, /api/regions, /api/regions/sync, static files) and removal of server-side /api/ping', async () => {
   resetRegionsToBuiltin();
-  const mockProbe = async (regionId) => ({
-    ok: true,
-    latency: regionId === 'ap-tokyo-1' ? 42 : 120,
-    method: 'tcp'
-  });
 
   const server = createAppServer({
-    probeFn: mockProbe,
     syncFn: async () => ({ ok: true, added: [], total: 40, source: 'builtin' })
   });
 
@@ -219,32 +213,21 @@ test('HTTP Server API endpoints (/api/health, /api/regions, /api/ping, /api/regi
     assert.equal(regions.json.total, 40);
     assert.ok(regions.json.groups.apac);
 
-    // 3. /api/ping SSRF protection
-    const badPing = await requestJson(server, 'GET', '/api/ping?id=127.0.0.1');
-    assert.equal(badPing.status, 400);
-    assert.ok(badPing.json.error);
+    // 3. Server-side /api/ping is removed (returns 404 so server never sends probe packets)
+    const pingResp = await requestJson(server, 'GET', '/api/ping?id=ap-tokyo-1');
+    assert.equal(pingResp.status, 404);
 
-    // 4. /api/ping single valid node
-    const singlePing = await requestJson(server, 'GET', '/api/ping?id=ap-tokyo-1');
-    assert.equal(singlePing.status, 200);
-    assert.equal(singlePing.json.results['ap-tokyo-1'].ok, true);
-    assert.equal(singlePing.json.results['ap-tokyo-1'].latency, 42);
-
-    // 5. /api/ping batch all nodes
-    const allPing = await requestJson(server, 'GET', '/api/ping');
-    assert.equal(allPing.status, 200);
-    assert.equal(Object.keys(allPing.json.results).length, 40);
-
-    // 6. POST /api/regions/sync
+    // 4. POST /api/regions/sync
     const syncResp = await requestJson(server, 'POST', '/api/regions/sync');
     assert.equal(syncResp.status, 200);
     assert.equal(syncResp.json.ok, true);
 
-    // 7. Static index.html, style.css, app.js & Reverse Proxy relative-path compliance
+    // 5. Static index.html, style.css, app.js & removal of server ping UI
     const indexResp = await requestJson(server, 'GET', '/');
     assert.equal(indexResp.status, 200);
     assert.ok(indexResp.headers['content-type'].includes('text/html'));
     assert.ok(indexResp.body.includes('甲骨文'));
+    assert.equal(indexResp.body.includes('modeServerBtn'), false);
 
     const cssResp = await requestJson(server, 'GET', '/style.css');
     assert.equal(cssResp.status, 200);
@@ -255,6 +238,7 @@ test('HTTP Server API endpoints (/api/health, /api/regions, /api/ping, /api/regi
     assert.ok(jsResp.headers['content-type'].includes('application/javascript'));
     assert.equal(jsResp.body.includes('http://localhost'), false);
     assert.equal(jsResp.body.includes('127.0.0.1'), false);
+    assert.equal(jsResp.body.includes('pingSingleNodeServer'), false);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
