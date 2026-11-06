@@ -244,14 +244,28 @@ test('HTTP Server API endpoints (/api/health, /api/regions, /api/regions/sync, s
   }
 });
 
-test('Remote bootstrap install.sh script contains interactive prompts and Docker Compose deployment', () => {
-  const scriptPath = path.join(__dirname, '..', 'install.sh');
-  assert.equal(fs.existsSync(scriptPath), true);
-  const content = fs.readFileSync(scriptPath, 'utf8');
-  assert.ok(content.startsWith('#!/usr/bin/env bash'));
-  assert.ok(content.includes('/dev/tty'));
-  assert.ok(content.includes('HOST_PORT'));
-  assert.ok(content.includes('CONTAINER_NAME'));
-  assert.ok(content.includes('AUTO_SYNC_REGIONS'));
-  assert.ok(content.includes('up -d --build'));
+test('Remote bootstrap install.sh, update.sh, and uninstall.sh scripts exist and cover lifecycle actions', () => {
+  const installPath = path.join(__dirname, '..', 'install.sh');
+  const updatePath = path.join(__dirname, '..', 'update.sh');
+  const uninstallPath = path.join(__dirname, '..', 'uninstall.sh');
+
+  assert.equal(fs.existsSync(installPath), true);
+  assert.equal(fs.existsSync(updatePath), true);
+  assert.equal(fs.existsSync(uninstallPath), true);
+
+  const installContent = fs.readFileSync(installPath, 'utf8');
+  assert.ok(installContent.startsWith('#!/usr/bin/env bash'));
+  assert.ok(installContent.includes('/dev/tty'));
+  assert.ok(installContent.includes('HOST_PORT'));
+  assert.ok(installContent.includes('do_update'));
+  assert.ok(installContent.includes('do_uninstall'));
+  assert.ok(installContent.includes('up -d --build'));
+
+  const updateContent = fs.readFileSync(updatePath, 'utf8');
+  assert.ok(updateContent.startsWith('#!/usr/bin/env bash'));
+  assert.ok(updateContent.includes('.env.backup'));
+
+  const uninstallContent = fs.readFileSync(uninstallPath, 'utf8');
+  assert.ok(uninstallContent.startsWith('#!/usr/bin/env bash'));
+  assert.ok(uninstallContent.includes('down --rmi local'));
 });

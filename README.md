@@ -21,56 +21,74 @@
 
 ---
 
-## 🚀 快速安装（推荐）
+## 🚀 一键安装 / 更新升级 / 彻底卸载
 
-在服务器上进入您希望存放项目的目录，执行以下一键安装命令：
+### 1. 一键远程安装（推荐）
+
+在服务器上进入您希望存放项目的目录，执行以下命令：
 
 ```bash
-# Debian / Ubuntu / CentOS / Alpine 一键交互式远程安装
 curl -fsSL https://raw.githubusercontent.com/AdoreYL/oci-latency-monitor/main/install.sh | bash
 ```
 
-> **若仓库设置为 Private（私有仓库）**，请携带您的 GitHub Token 执行：
-> ```bash
-> GITHUB_TOKEN=您的GitHub_Token bash -c "$(curl -fsSL -H 'Authorization: token 您的GitHub_Token' https://raw.githubusercontent.com/AdoreYL/oci-latency-monitor/main/install.sh)"
-> ```
-
-运行后安装器会自动引导您确认以下参数（直接按回车即可采用默认值）：
+运行后脚本会自动引导您设置以下参数（**直接按回车即可采用默认值**）：
 1. **安装目录名称**（默认：`oci-latency-monitor`）
 2. **宿主机访问端口**（默认：`6689`）
 3. **Docker 容器名称**（默认：`oci-latency-monitor`）
 4. **是否开启启动时自动同步甲骨文官方新区域**（默认：`Y`）
 
-确认后脚本会自动拉取项目到当前目录、生成 `.env` 配置并执行 `docker compose up -d --build`。
+> 💡 **智能管理菜单**：如果检测到当前目录已安装过本项目，再次运行上面这条命令会自动弹出交互式菜单（`1) 更新升级` / `2) 重新配置` / `3) 彻底卸载`）。
 
 ---
 
-## 🔧 手动克隆与 Docker Compose 部署
+### 2. 一键更新升级（保留原有端口与配置）
+
+后续项目有新版本时，会自动备份并保留您原有的 `.env` 端口配置，拉取最新代码并重建启动容器：
 
 ```bash
-git clone https://github.com/AdoreYL/oci-latency-monitor.git
-cd oci-latency-monitor
-docker compose up -d --build
-```
+# 方式一：远程一键更新
+curl -fsSL https://raw.githubusercontent.com/AdoreYL/oci-latency-monitor/main/install.sh | bash -s -- update
 
-启动后：
-- **本地/内网访问**：`http://服务器IP:6689`
-- **反向代理配置（宝塔 / 1Panel / NPM / Caddy）**：将您的域名直接反向代理至 `http://127.0.0.1:6689` 即可。
+# 方式二：在项目目录内直接运行
+bash update.sh
+```
 
 ---
 
-## 🛠️ 常用管理命令
+### 3. 一键彻底卸载
+
+自动停止并移除 Docker 容器、清理本地构建镜像，并询问是否删除项目目录文件：
+
+```bash
+# 方式一：远程一键卸载
+curl -fsSL https://raw.githubusercontent.com/AdoreYL/oci-latency-monitor/main/install.sh | bash -s -- uninstall
+
+# 方式二：在项目目录内直接运行
+bash uninstall.sh
+```
+
+---
+
+## 🔗 反向代理配置（宝塔 / 1Panel / Nginx Proxy Manager / Caddy）
+
+安装完成后：
+- **内网/IP 直接访问**：`http://服务器IP:6689`
+- **HTTPS 域名反向代理**：在宝塔 / 1Panel / NPM / Caddy 中新建反代站点，将目标地址指向 `http://127.0.0.1:6689` 即可。
+
+---
+
+## 🛠️ 常用 Docker Compose 命令
 
 进入安装目录（默认 `cd oci-latency-monitor`）后：
 
 | 操作 | 命令 |
 |------|------|
+| 更新升级（保留配置） | `bash update.sh` |
+| 彻底卸载 | `bash uninstall.sh` |
 | 查看运行状态 | `docker compose ps` |
 | 查看实时日志 | `docker compose logs -f` |
 | 修改端口后重新生效 | 编辑 `.env` 中的 `HOST_PORT` 后执行 `docker compose up -d` |
-| 更新重启服务 | `docker compose up -d --build` |
-| 停止并移除容器 | `docker compose down` |
-| 运行单元测试 | `node --test test/server.test.js` |
+| 重启服务 | `docker compose restart` |
 
 ---
 
